@@ -1,0 +1,12 @@
+# One-click deploy to Render (https://render.com).
+# Builds the React client and serves it from the Express server on one URL.
+services:
+  - type: web
+    name: fullstack-test
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.15.0

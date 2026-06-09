@@ -1,0 +1,16 @@
+{
+  "name": "fullstack-test-server",
+  "version": "1.0.0",
+  "description": "Express backend for the 1M items selection/sorting test task",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
