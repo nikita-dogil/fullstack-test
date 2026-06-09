@@ -57,10 +57,9 @@ class RequestQueue {
     if (this.started) return;
     this.started = true;
     this.addTimer = setInterval(() => void this.flushAdds(), ADD_INTERVAL_MS);
-    this.rwTimer = setInterval(() => {
-      void this.flushMutations();
-      void this.flushGets();
-    }, RW_INTERVAL_MS);
+    // Writes are batched on a fixed 1s tick. Reads are throttled separately
+    // (see scheduleGetFlush) so the first request of a burst fires immediately.
+    this.rwTimer = setInterval(() => void this.flushMutations(), RW_INTERVAL_MS);
   }
 
   private started = false;
@@ -137,13 +136,31 @@ class RequestQueue {
     }
   }
 
-  // ---- GET queue (de-duplicated, flushed every 1s) ----------------------
+  // ---- GET queue (de-duplicated, throttled to ≤1 flush/sec) -------------
+  // De-duplication: identical pending URLs share one request. Throttling: the
+  // first read of a burst fires right away (leading edge) so filtering/scroll
+  // feel instant; further reads within the 1s window are batched together.
   enqueueGet<T = any>(url: string): Promise<T> {
     const existing = this.getMap.get(url);
     if (existing) return existing.promise as Promise<T>;
     const d = defer<T>();
     this.getMap.set(url, d);
+    this.scheduleGetFlush();
     return d.promise;
+  }
+
+  private lastGetFlush = 0;
+  private getFlushScheduled = false;
+
+  private scheduleGetFlush() {
+    if (this.getFlushScheduled) return;
+    this.getFlushScheduled = true;
+    const wait = Math.max(0, RW_INTERVAL_MS - (Date.now() - this.lastGetFlush));
+    setTimeout(() => {
+      this.getFlushScheduled = false;
+      this.lastGetFlush = Date.now();
+      void this.flushGets();
+    }, wait);
   }
 
   async flushGets() {
