@@ -6,33 +6,38 @@
 // pending in the queue, a second operation with the same key is dropped — this
 // gives the "same value will not be processed twice" guarantee.
 
+type QueueKey = string | null;
+
+interface QueueItem {
+  key: QueueKey;
+  run: () => unknown | Promise<unknown>;
+}
+
 export class OperationQueue {
-  constructor() {
-    this._items = [];
-    this._pendingKeys = new Set();
-    this._processing = false;
-  }
+  private _items: QueueItem[] = [];
+  private _pendingKeys = new Set<string>();
+  private _processing = false;
 
   /**
    * Enqueue an operation.
-   * @param {string} key  dedup key — duplicates already in the queue are ignored
-   * @param {() => any} run  the work to perform when the op is processed
-   * @returns {boolean} true if enqueued, false if dropped as a duplicate
+   * @param key  dedup key — duplicates already in the queue are ignored
+   * @param run  the work to perform when the op is processed
+   * @returns true if enqueued, false if dropped as a duplicate
    */
-  enqueue(key, run) {
+  enqueue(key: QueueKey, run: () => unknown | Promise<unknown>): boolean {
     if (key != null && this._pendingKeys.has(key)) return false;
     if (key != null) this._pendingKeys.add(key);
     this._items.push({ key, run });
-    this._drain();
+    void this._drain();
     return true;
   }
 
-  async _drain() {
+  private async _drain(): Promise<void> {
     if (this._processing) return;
     this._processing = true;
     try {
       while (this._items.length > 0) {
-        const { key, run } = this._items.shift();
+        const { key, run } = this._items.shift()!;
         if (key != null) this._pendingKeys.delete(key);
         try {
           await run();
@@ -47,7 +52,7 @@ export class OperationQueue {
     }
   }
 
-  get size() {
+  get size(): number {
     return this._items.length;
   }
 }
